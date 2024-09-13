@@ -155,6 +155,7 @@ local function fast_readdir(path)
             "-NoProfile",
             "-Command",
             string.format([[
+            [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
             $ErrorActionPreference = 'SilentlyContinue'
             $dirs = Get-ChildItem -LiteralPath %s -Directory
             foreach($dir in $dirs) {
