@@ -189,9 +189,7 @@ local function traverse(search_path, current_path, cache)
             msg.trace("Returning from cache for", full_path)
             for _, p in ipairs(cache[full_path]) do
                 table.insert(result, p)
-                if node.level + 1 <= o.max_search_depth then
-                    table.insert(stack, { path = p, level = node.level + 1 })
-                end
+                table.insert(stack, { path = p, level = node.level + 1 })
             end
         else
             local dirs = fast_readdir(full_path) or {}
