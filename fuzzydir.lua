@@ -174,7 +174,7 @@ end
 
 -- Platform-dependent optimization end
 
-local function traverse(search_path, current_path)
+local function traverse(search_path, current_path, cache)
     local stack = {}
     local result = {}
     table.insert(stack, { path = current_path, level = 1 })
@@ -185,14 +185,24 @@ local function traverse(search_path, current_path)
 
         if node.level > o.max_search_depth then
             msg.trace("Traversed too deep, skipping scan for", full_path)
+        elseif cache[full_path] then
+            msg.trace("Returning from cache for", full_path)
+            for _, p in ipairs(cache[full_path]) do
+                table.insert(result, p)
+                if node.level + 1 <= o.max_search_depth then
+                    table.insert(stack, { path = p, level = node.level + 1 })
+                end
+            end
         else
             local dirs = fast_readdir(full_path) or {}
             if o.discovery_threshold > 0 and #dirs > o.discovery_threshold then
                 msg.debug("Too many directories in " .. full_path .. ", skipping")
             else
+                cache[full_path] = {}
                 for _, dir in ipairs(dirs) do
                     local new_path = utils.join_path(node.path, dir)
                     table.insert(result, new_path)
+                    table.insert(cache[full_path], new_path)
                     table.insert(stack, { path = new_path, level = node.level + 1 })
                 end
             end
@@ -202,14 +212,14 @@ local function traverse(search_path, current_path)
     return result
 end
 
-local function explode(raw_paths, search_path)
+local function explode(raw_paths, search_path, cache)
     local result = {}
     for _, raw_path in ipairs(raw_paths) do
         local parent, leftover = utils.split_path(raw_path)
         if leftover == "**" then
             msg.trace("Expanding wildcard for", raw_path)
             table.insert(result, parent)
-            local expanded_paths = traverse(search_path, parent)
+            local expanded_paths = traverse(search_path, parent, cache)
             for _, p in ipairs(expanded_paths) do
                 local normalized_path = normalize(p)
                 if not contains(result, normalized_path) and normalized_path ~= "" then
@@ -233,8 +243,10 @@ local function explode_all()
     local search_path = utils.split_path(video_path)
     msg.debug("search_path = " .. search_path)
 
+    local cache = {}
+
     msg.debug("Processing audio-file-paths")
-    local audio_paths = explode(default_audio_paths, search_path)
+    local audio_paths = explode(default_audio_paths, search_path, cache)
     for _, path in ipairs(audio_paths) do
         msg.debug("Adding to audio-file-paths:", path)
     end
