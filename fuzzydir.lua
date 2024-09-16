@@ -241,7 +241,11 @@ local function explode_all()
     mp.set_property_native("options/audio-file-paths", audio_paths)
 
     msg.debug("Processing sub-file-paths")
-    sub_paths = explode(default_sub_paths, search_path)
+    local sub_paths = audio_paths
+    if table.concat(default_audio_paths) ~= table.concat(default_sub_paths) then
+        sub_paths = explode(default_sub_paths, search_path)
+    end
+
     for _, path in ipairs(sub_paths) do
         msg.debug("Adding to sub-file-paths:", path)
     end
