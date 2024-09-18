@@ -202,7 +202,7 @@ end
 local function explode(raw_paths, search_path)
     local result = {}
     for _, raw_path in ipairs(raw_paths) do
-        local is_wildcard = ends_with(raw_path, "")
+        local is_wildcard = ends_with(raw_path, "**")
         local base_path = raw_path
 
         if is_wildcard then
