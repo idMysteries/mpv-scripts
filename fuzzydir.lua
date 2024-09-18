@@ -174,10 +174,11 @@ end
 
 -- Platform-dependent optimization end
 
-local function traverse(search_path, current_path, level, result, visited)
+local global_cache = {}
+
+local function traverse(search_path, current_path, level, result)
     level = level or 1
     result = result or {}
-    visited = visited or {}
 
     if level > o.max_search_depth then
         msg.trace("Reached max depth at", current_path)
@@ -185,14 +186,17 @@ local function traverse(search_path, current_path, level, result, visited)
     end
 
     local full_path = utils.join_path(search_path, current_path)
+    msg.debug("Traversing", full_path, "at level", level)
 
-    if visited[full_path] then
-        msg.trace("Already visited", full_path, "skipping to prevent cycles")
-        return result
+    local dirs = nil
+    if global_cache[full_path] then
+        msg.trace("Using cached dirs for", full_path)
+        dirs = global_cache[full_path]
+    else
+        dirs = fast_readdir(full_path) or {}
+        global_cache[full_path] = dirs
     end
-    visited[full_path] = true
 
-    local dirs = fast_readdir(full_path) or {}
     if o.discovery_threshold > 0 and #dirs > o.discovery_threshold then
         msg.debug("Too many directories in " .. full_path .. ", skipping")
         return result
@@ -201,7 +205,7 @@ local function traverse(search_path, current_path, level, result, visited)
     for _, dir in ipairs(dirs) do
         local new_path = utils.join_path(current_path, dir)
         table.insert(result, new_path)
-        traverse(search_path, new_path, level + 1, result, visited)
+        traverse(search_path, new_path, level + 1, result)
     end
 
     return result
@@ -222,17 +226,28 @@ local function explode(raw_paths, search_path)
                 table.insert(result, base_path)
             end
 
-            local expanded_paths = traverse(search_path, base_path)
+            local cache_key = search_path .. "|" .. base_path
+            local expanded_paths
+
+            if global_cache[cache_key] then
+                msg.trace("Using cached paths for", cache_key)
+                expanded_paths = global_cache[cache_key]
+            else
+                expanded_paths = traverse(search_path, base_path)
+                global_cache[cache_key] = expanded_paths
+            end
+
             for _, p in ipairs(expanded_paths) do
                 local normalized_path = normalize(p)
                 if not contains(result, normalized_path) and normalized_path ~= "" then
                     table.insert(result, normalized_path)
                 end
             end
+
         else
             msg.trace("Path", raw_path, "doesn't have a wildcard, keeping as-is")
             local normalized_path = normalize(raw_path)
-            if not contains(result, normalized_path) and normalized_path ~= "" then
+            if normalized_path ~= "" and not contains(result, normalized_path) then
                 table.insert(result, normalized_path)
             end
         end
@@ -268,6 +283,8 @@ local function explode_all()
     mp.set_property_native("options/sub-file-paths", sub_paths)
 
     msg.debug("Done expanding paths")
+
+    global_cache = {}
 end
 
 mp.add_hook("on_load", 50, explode_all)
