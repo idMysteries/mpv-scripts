@@ -191,9 +191,9 @@ local function traverse(search_path, current_path, level, result)
     end
 
     for _, dir in ipairs(dirs) do
-        local new_rel_path = utils.join_path(current_path, dir)
-        table.insert(result, new_rel_path)
-        traverse(search_path, new_rel_path, level + 1, result)
+        local new_path = utils.join_path(current_path, dir)
+        table.insert(result, new_path)
+        traverse(search_path, new_path, level + 1, result)
     end
 
     return result
@@ -202,11 +202,19 @@ end
 local function explode(raw_paths, search_path)
     local result = {}
     for _, raw_path in ipairs(raw_paths) do
-        local parent, leftover = utils.split_path(raw_path)
-        if leftover == "**" then
+        local is_wildcard = ends_with(raw_path, "")
+        local base_path = raw_path
+
+        if is_wildcard then
+            base_path = raw_path:sub(1, -3)
+            base_path = normalize(base_path)
             msg.trace("Expanding wildcard for", raw_path)
-            table.insert(result, parent)
-            local expanded_paths = traverse(search_path, parent)
+
+            if base_path ~= "" and not contains(result, base_path) then
+                table.insert(result, base_path)
+            end
+
+            local expanded_paths = traverse(search_path, base_path)
             for _, p in ipairs(expanded_paths) do
                 local normalized_path = normalize(p)
                 if not contains(result, normalized_path) and normalized_path ~= "" then
@@ -215,7 +223,10 @@ local function explode(raw_paths, search_path)
             end
         else
             msg.trace("Path", raw_path, "doesn't have a wildcard, keeping as-is")
-            table.insert(result, normalize(raw_path))
+            local normalized_path = normalize(raw_path)
+            if not contains(result, normalized_path) and normalized_path ~= "" then
+                table.insert(result, normalized_path)
+            end
         end
     end
 
