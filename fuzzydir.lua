@@ -174,9 +174,10 @@ end
 
 -- Platform-dependent optimization end
 
-local function traverse(search_path, current_path, level, result)
+local function traverse(search_path, current_path, level, result, visited)
     level = level or 1
     result = result or {}
+    visited = visited or {}
 
     if level > o.max_search_depth then
         msg.trace("Reached max depth at", current_path)
@@ -184,6 +185,13 @@ local function traverse(search_path, current_path, level, result)
     end
 
     local full_path = utils.join_path(search_path, current_path)
+
+    if visited[full_path] then
+        msg.trace("Already visited", full_path, "skipping to prevent cycles")
+        return result
+    end
+    visited[full_path] = true
+
     local dirs = fast_readdir(full_path) or {}
     if o.discovery_threshold > 0 and #dirs > o.discovery_threshold then
         msg.debug("Too many directories in " .. full_path .. ", skipping")
@@ -193,7 +201,7 @@ local function traverse(search_path, current_path, level, result)
     for _, dir in ipairs(dirs) do
         local new_path = utils.join_path(current_path, dir)
         table.insert(result, new_path)
-        traverse(search_path, new_path, level + 1, result)
+        traverse(search_path, new_path, level + 1, result, visited)
     end
 
     return result
