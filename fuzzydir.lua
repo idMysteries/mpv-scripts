@@ -174,29 +174,26 @@ end
 
 -- Platform-dependent optimization end
 
-local function traverse(search_path, current_path)
-    local stack = {}
-    local result = {}
-    table.insert(stack, { path = current_path, level = 1 })
+local function traverse(search_path, current_path, level, result)
+    level = level or 1
+    result = result or {}
 
-    while #stack > 0 do
-        local node = table.remove(stack)
-        local full_path = utils.join_path(search_path, node.path)
+    if level > o.max_search_depth then
+        msg.trace("Reached max depth at", current_path)
+        return result
+    end
 
-        if node.level > o.max_search_depth then
-            msg.trace("Traversed too deep, skipping scan for", full_path)
-        else
-            local dirs = fast_readdir(full_path) or {}
-            if o.discovery_threshold > 0 and #dirs > o.discovery_threshold then
-                msg.debug("Too many directories in " .. full_path .. ", skipping")
-            else
-                for _, dir in ipairs(dirs) do
-                    local new_path = utils.join_path(node.path, dir)
-                    table.insert(result, new_path)
-                    table.insert(stack, { path = new_path, level = node.level + 1 })
-                end
-            end
-        end
+    local full_path = utils.join_path(search_path, current_path)
+    local dirs = fast_readdir(full_path) or {}
+    if o.discovery_threshold > 0 and #dirs > o.discovery_threshold then
+        msg.debug("Too many directories in " .. full_path .. ", skipping")
+        return result
+    end
+
+    for _, dir in ipairs(dirs) do
+        local new_rel_path = utils.join_path(current_path, dir)
+        table.insert(result, new_rel_path)
+        traverse(search_path, new_rel_path, level + 1, result)
     end
 
     return result
